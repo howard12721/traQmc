@@ -6,10 +6,12 @@ import com.github.howard12721.trakt.rest.apis.ChannelApi
 import com.github.howard12721.trakt.rest.apis.MessageApi
 import com.github.howard12721.trakt.rest.models.PostMessageRequest
 import com.github.howard12721.trakt.rest.models.PutChannelTopicRequest
+import com.github.howard12721.trakt.websocket.MessageCreated
 import io.papermc.paper.event.player.AsyncChatEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.TextComponent
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
@@ -30,8 +32,16 @@ class ChatHandler(
     val channelApi: ChannelApi,
 ) : Listener {
 
+    fun handleTraqMessage(event: MessageCreated) {
+        Bukkit.getScheduler().runTask(plugin) { _ ->
+            plugin.server.sendMessage(
+                Component.text("<traQ:${event.message.user.name}> ${event.message.text}")
+            )
+        }
+    }
+
     @EventHandler(priority = EventPriority.MONITOR)
-    fun handleMessage(event: AsyncChatEvent) {
+    fun handleMinecraftMessage(event: AsyncChatEvent) {
         transaction {
             val component = event.message()
             if (component !is TextComponent) {

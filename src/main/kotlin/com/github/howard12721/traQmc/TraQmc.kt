@@ -2,11 +2,12 @@ package com.github.howard12721.traQmc
 
 import com.github.howard12721.traQmc.handler.ChatHandler
 import com.github.howard12721.traQmc.handler.LoginHandler
-import com.github.howard12721.traQmc.handler.TraqChatHandler
 import com.github.howard12721.traQmc.intrastructure.FileConfigRepository
 import com.github.howard12721.traQmc.intrastructure.SqlUserRepository
 import com.github.howard12721.trakt.rest.apis.ChannelApi
 import com.github.howard12721.trakt.rest.apis.MessageApi
+import com.github.howard12721.trakt.websocket.DirectMessageCreated
+import com.github.howard12721.trakt.websocket.MessageCreated
 import com.github.howard12721.trakt.websocket.WebSocketClient
 import org.bukkit.plugin.java.JavaPlugin
 
@@ -31,14 +32,18 @@ class TraQmc : JavaPlugin() {
 
         val chatHandler = ChatHandler(this, configRepository, userRepository, messageApi, channelApi)
         server.pluginManager.registerEvents(chatHandler, this)
+        webSocketClient.on<MessageCreated> {
+            chatHandler.handleTraqMessage(this)
+        }
 
         val loginHandler = LoginHandler(this, userRepository, messageApi)
         server.pluginManager.registerEvents(loginHandler, this)
-        loginHandler.registerHandlers(webSocketClient)
+        webSocketClient.on<DirectMessageCreated> {
+            loginHandler.handleDirectMessage(this)
+        }
 
-        val traqChatHandler = TraqChatHandler(this)
-        traqChatHandler.registerHandlers(webSocketClient)
         webSocketClient.start()
+
     }
 
     override fun onDisable() {

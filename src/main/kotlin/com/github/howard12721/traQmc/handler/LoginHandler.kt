@@ -5,7 +5,6 @@ import com.github.howard12721.traQmc.model.user.UserRepository
 import com.github.howard12721.trakt.rest.apis.MessageApi
 import com.github.howard12721.trakt.rest.models.PostMessageRequest
 import com.github.howard12721.trakt.websocket.DirectMessageCreated
-import com.github.howard12721.trakt.websocket.WebSocketClient
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.event.EventHandler
@@ -35,37 +34,35 @@ class LoginHandler(
 
     private val sessions = ConcurrentHashMap<UUID, LinkSession>()
 
-    fun registerHandlers(webSocketClient: WebSocketClient) {
-        webSocketClient.on<DirectMessageCreated> {
-            if (message.text.startsWith("!verify")) {
-                val args = message.text.split(" ")
-                if (args.size != 2) {
-                    return@on
-                }
-                val token = args[1]
-                val session = sessions.values.find { it.token == token }
-                if (session == null) {
-                    messageApi.postMessage(
-                        message.channelId.toString(),
-                        PostMessageRequest(
-                            "無効なリンクコードです。正しいコードを使用してください。",
-                            false
-                        )
-                    )
-                    return@on
-                }
-                val newUser = User(session.id, message.user.name)
-                transaction {
-                    userRepository.save(newUser)
-                }
+    suspend fun handleDirectMessage(event: DirectMessageCreated) {
+        if (event.message.text.startsWith("!verify")) {
+            val args = event.message.text.split(" ")
+            if (args.size != 2) {
+                return
+            }
+            val token = args[1]
+            val session = sessions.values.find { it.token == token }
+            if (session == null) {
                 messageApi.postMessage(
-                    message.channelId.toString(),
+                    event.message.channelId.toString(),
                     PostMessageRequest(
-                        "連携が完了しました！",
+                        "無効なリンクコードです。正しいコードを使用してください。",
                         false
                     )
                 )
+                return
             }
+            val newUser = User(session.id, event.message.user.name)
+            transaction {
+                userRepository.save(newUser)
+            }
+            messageApi.postMessage(
+                event.message.channelId.toString(),
+                PostMessageRequest(
+                    "連携が完了しました！",
+                    false
+                )
+            )
         }
     }
 
