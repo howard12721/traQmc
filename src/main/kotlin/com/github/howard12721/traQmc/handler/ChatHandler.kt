@@ -11,10 +11,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.TextComponent
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
+import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.plugin.Plugin
@@ -56,8 +58,8 @@ class ChatHandler(
 
     @EventHandler
     fun onPlayerJoin(event: PlayerJoinEvent) {
-        Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, {
-                event -> updateTopics()
+        Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, { event ->
+            updateTopics()
         }, 60L)
         transaction {
             val config = configRepository.get()
@@ -80,8 +82,8 @@ class ChatHandler(
 
     @EventHandler
     fun onPlayerLeave(event: PlayerQuitEvent) {
-        Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, {
-            event -> updateTopics()
+        Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, { event ->
+            updateTopics()
         }, 60L)
         transaction {
             val config = configRepository.get()
@@ -102,19 +104,49 @@ class ChatHandler(
         }
     }
 
+    @EventHandler
+    fun onPlayerDeath(event: PlayerDeathEvent) {
+        val deathMessageComponent = event.deathMessage() ?: return
+        val deathMessage = PlainTextComponentSerializer.plainText().serialize(deathMessageComponent)
+        transaction {
+            val config = configRepository.get()
+            if (config.chatIntegrationChannel.isBlank()) {
+                return@transaction
+            }
+            val user = userRepository.findByID(event.player.uniqueId) ?: return@transaction
+
+            val message = ":@${user.traqId}:" + deathMessage
+
+            CoroutineScope(Dispatchers.IO).launch {
+                messageApi.postMessage(
+                    config.chatIntegrationChannel,
+                    PostMessageRequest(message)
+                )
+            }
+        }
+    }
+
     fun updateTopics() {
         val config = configRepository.get()
         if (config.chatIntegrationChannel.isBlank()) {
             return
         }
 
-        CoroutineScope(Dispatchers.IO).launch {
-            channelApi.editChannelTopic(
-                config.chatIntegrationChannel,
-                PutChannelTopicRequest(
-                    "現在の参加者数: ${Bukkit.getOnlinePlayers().size}人"
+        transaction {
+            val players = Bukkit.getOnlinePlayers()
+            val stringBuilder = StringBuilder("現在の参加者数: ${players.size}人 ")
+            for (player in Bukkit.getOnlinePlayers()) {
+                val user = userRepository.findByID(player.uniqueId) ?: continue
+                stringBuilder.append(":@${user.traqId}:")
+            }
+            CoroutineScope(Dispatchers.IO).launch {
+                channelApi.editChannelTopic(
+                    config.chatIntegrationChannel,
+                    PutChannelTopicRequest(
+                        stringBuilder.toString(),
+                    )
                 )
-            )
+            }
         }
     }
 
