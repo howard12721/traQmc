@@ -33,6 +33,9 @@ class ChatHandler(
 ) : Listener {
 
     fun handleTraqMessage(event: MessageCreated) {
+        if (event.message.user.bot) {
+            return
+        }
         Bukkit.getScheduler().runTask(plugin) { _ ->
             plugin.server.sendMessage(
                 Component.text("<traQ:${event.message.user.name}> ${event.message.text}")

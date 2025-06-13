@@ -35,6 +35,9 @@ class LoginHandler(
     private val sessions = ConcurrentHashMap<UUID, LinkSession>()
 
     suspend fun handleDirectMessage(event: DirectMessageCreated) {
+        if (event.message.user.bot) {
+            return
+        }
         if (event.message.text.startsWith("!verify")) {
             val args = event.message.text.split(" ")
             if (args.size != 2) {
