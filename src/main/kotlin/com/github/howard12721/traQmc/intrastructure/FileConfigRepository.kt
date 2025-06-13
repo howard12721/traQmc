@@ -8,7 +8,7 @@ class FileConfigRepository(private val plugin: Plugin) : ConfigRepository {
 
     private var config: Config? = null
 
-    override fun load(): Config {
+    fun load(): Config {
         plugin.reloadConfig()
         return Config(
             plugin.config.getString("token") ?: throw IllegalArgumentException("Token is required"),
