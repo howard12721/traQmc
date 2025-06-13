@@ -1,0 +1,8 @@
+token: ""
+chat_integration_channel: ""
+
+database:
+  url: "localhost:3306"
+  database: "mydb"
+  user: "user"
+  password: "pass"
