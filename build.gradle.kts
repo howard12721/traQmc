@@ -25,7 +25,7 @@ dependencies {
     implementation("com.github.howard12721:trakt-rest:1.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
 
-    implementation("org.jetbrains.exposed:exposed-core:1.0.0-beta-2")
+    implementation("org.jetbrains.exposed:exposed-core:1.0.0")
     implementation("org.jetbrains.exposed:exposed-jdbc:1.0.0-beta-2")
     implementation("org.jetbrains.exposed:exposed-dao:1.0.0-beta-2")
     implementation("org.mariadb.jdbc:mariadb-java-client:3.5.3")
