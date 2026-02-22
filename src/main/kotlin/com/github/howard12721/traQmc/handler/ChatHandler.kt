@@ -2,15 +2,14 @@ package com.github.howard12721.traQmc.handler
 
 import com.github.howard12721.traQmc.model.config.ConfigRepository
 import com.github.howard12721.traQmc.model.user.UserRepository
-import com.github.howard12721.trakt.rest.apis.ChannelApi
-import com.github.howard12721.trakt.rest.apis.MessageApi
-import com.github.howard12721.trakt.rest.models.PostMessageRequest
-import com.github.howard12721.trakt.rest.models.PutChannelTopicRequest
-import com.github.howard12721.trakt.websocket.MessageCreated
 import io.papermc.paper.event.player.AsyncChatEvent
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import jp.xhw.trakt.bot.TraktClient
+import jp.xhw.trakt.bot.model.ChannelHandle
+import jp.xhw.trakt.bot.model.MessageCreated
+import jp.xhw.trakt.bot.scope.BotScope
+import jp.xhw.trakt.bot.scope.resolve
+import jp.xhw.trakt.bot.scope.sendMessage
+import jp.xhw.trakt.bot.scope.setTopic
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.TextComponent
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
@@ -28,17 +27,19 @@ class ChatHandler(
     val plugin: Plugin,
     val configRepository: ConfigRepository,
     val userRepository: UserRepository,
-    val messageApi: MessageApi,
-    val channelApi: ChannelApi,
+    val traktClient: TraktClient,
 ) : Listener {
+    context(scope: BotScope)
+    suspend fun handleTraqMessage(event: MessageCreated) {
+        val author = event.message.author.resolve()
 
-    fun handleTraqMessage(event: MessageCreated) {
-        if (event.message.user.bot) {
+        if (author.isBot) {
             return
         }
+
         Bukkit.getScheduler().runTask(plugin) { _ ->
             plugin.server.sendMessage(
-                Component.text("<traQ:${event.message.user.name}> ${event.message.text}")
+                Component.text("<traQ:${author.name}> ${event.message.content}"),
             )
         }
     }
@@ -60,11 +61,8 @@ class ChatHandler(
             val name = event.player.name
             val message = ":@${user.traqId}:<$name> ${component.content()}"
 
-            CoroutineScope(Dispatchers.IO).launch {
-                messageApi.postMessage(
-                    config.chatIntegrationChannel,
-                    PostMessageRequest(message)
-                )
+            traktClient.launchAndExecute {
+                ChannelHandle.of(config.chatIntegrationChannel).sendMessage(message)
             }
         }
     }
@@ -84,11 +82,8 @@ class ChatHandler(
             val name = event.player.name
             val message = ":@${user.traqId}:$name がサバイバルに参加しました。"
 
-            CoroutineScope(Dispatchers.IO).launch {
-                messageApi.postMessage(
-                    config.chatIntegrationChannel,
-                    PostMessageRequest(message)
-                )
+            traktClient.launchAndExecute {
+                ChannelHandle.of(config.chatIntegrationChannel).sendMessage(message)
             }
         }
     }
@@ -108,11 +103,8 @@ class ChatHandler(
             val name = event.player.name
             val message = ":@${user.traqId}:$name がサバイバルから退出しました。"
 
-            CoroutineScope(Dispatchers.IO).launch {
-                messageApi.postMessage(
-                    config.chatIntegrationChannel,
-                    PostMessageRequest(message)
-                )
+            traktClient.launchAndExecute {
+                ChannelHandle.of(config.chatIntegrationChannel).sendMessage(message)
             }
         }
     }
@@ -130,11 +122,8 @@ class ChatHandler(
 
             val message = ":@${user.traqId}:" + deathMessage
 
-            CoroutineScope(Dispatchers.IO).launch {
-                messageApi.postMessage(
-                    config.chatIntegrationChannel,
-                    PostMessageRequest(message)
-                )
+            traktClient.launchAndExecute {
+                ChannelHandle.of(config.chatIntegrationChannel).sendMessage(message)
             }
         }
     }
@@ -152,15 +141,10 @@ class ChatHandler(
                 val user = userRepository.findByID(player.uniqueId) ?: continue
                 stringBuilder.append(":@${user.traqId}:")
             }
-            CoroutineScope(Dispatchers.IO).launch {
-                channelApi.editChannelTopic(
-                    config.chatIntegrationChannel,
-                    PutChannelTopicRequest(
-                        stringBuilder.toString(),
-                    )
-                )
+
+            traktClient.launchAndExecute {
+                ChannelHandle.of(config.chatIntegrationChannel).setTopic(stringBuilder.toString())
             }
         }
     }
-
 }

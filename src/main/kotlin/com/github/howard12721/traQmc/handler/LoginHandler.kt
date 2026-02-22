@@ -2,9 +2,10 @@ package com.github.howard12721.traQmc.handler
 
 import com.github.howard12721.traQmc.model.user.User
 import com.github.howard12721.traQmc.model.user.UserRepository
-import com.github.howard12721.trakt.rest.apis.MessageApi
-import com.github.howard12721.trakt.rest.models.PostMessageRequest
-import com.github.howard12721.trakt.websocket.DirectMessageCreated
+import jp.xhw.trakt.bot.model.DirectMessageCreated
+import jp.xhw.trakt.bot.scope.BotScope
+import jp.xhw.trakt.bot.scope.reply
+import jp.xhw.trakt.bot.scope.resolve
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.event.EventHandler
@@ -17,55 +18,43 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.uuid.ExperimentalUuidApi
 
 data class LinkSession(
     val id: UUID,
     val token: String,
-    val expiresAt: Long
+    val expiresAt: Long,
 )
 
-@OptIn(ExperimentalUuidApi::class)
 class LoginHandler(
     private val plugin: Plugin,
     private val userRepository: UserRepository,
-    private val messageApi: MessageApi
 ) : Listener {
-
     private val sessions = ConcurrentHashMap<UUID, LinkSession>()
 
+    context(scope: BotScope)
     suspend fun handleDirectMessage(event: DirectMessageCreated) {
-        if (event.message.user.bot) {
+        val author = event.message.author.resolve()
+
+        if (author.isBot) {
             return
         }
-        if (event.message.text.startsWith("!verify")) {
-            val args = event.message.text.split(" ")
+
+        if (event.message.content.startsWith("!verify")) {
+            val args = event.message.content.split(" ")
             if (args.size != 2) {
                 return
             }
             val token = args[1]
             val session = sessions.values.find { it.token == token }
             if (session == null) {
-                messageApi.postMessage(
-                    event.message.channelId.toString(),
-                    PostMessageRequest(
-                        "無効なリンクコードです。正しいコードを使用してください。",
-                        false
-                    )
-                )
+                event.message.reply("無効なリンクコードです。正しいコードを使用してください。")
                 return
             }
-            val newUser = User(session.id, event.message.user.name)
+            val newUser = User(session.id, author.name)
             transaction {
                 userRepository.save(newUser)
             }
-            messageApi.postMessage(
-                event.message.channelId.toString(),
-                PostMessageRequest(
-                    "連携が完了しました！",
-                    false
-                )
-            )
+            event.message.reply("連携が完了しました！")
         }
     }
 
@@ -85,25 +74,22 @@ class LoginHandler(
 
                 event.disallow(
                     AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
-                    Component.text("このサーバーに参加するにはtraQアカウントをリンクする必要があります。")
+                    Component
+                        .text("このサーバーに参加するにはtraQアカウントをリンクする必要があります。")
                         .appendNewline()
                         .append(
-                            Component.text("リンクするには traQで @BOT_traQmc のDMに以下のコマンドを送信してください。")
-                        )
-                        .appendNewline()
+                            Component.text("リンクするには traQで @BOT_traQmc のDMに以下のコマンドを送信してください。"),
+                        ).appendNewline()
                         .append(
-                            Component.text("「!verify ${session.token}」")
-                        )
-                        .appendNewline()
-                        .append(Component.text("このコードの有効期限は $formattedString です"))
+                            Component.text("「!verify ${session.token}」"),
+                        ).appendNewline()
+                        .append(Component.text("このコードの有効期限は $formattedString です")),
                 )
             }
         }
     }
 
-    private fun getLinkSession(id: UUID): LinkSession {
-        return sessions[id] ?: createSession(id)
-    }
+    private fun getLinkSession(id: UUID): LinkSession = sessions[id] ?: createSession(id)
 
     private fun createSession(id: UUID): LinkSession {
         val session = LinkSession(id, generateToken(), System.currentTimeMillis() + 15 * 60 * 1000)
@@ -113,7 +99,7 @@ class LoginHandler(
             { task ->
                 sessions.remove(id)
             },
-            15 * 60 * 20L
+            15 * 60 * 20L,
         )
         return session
     }
@@ -127,5 +113,4 @@ class LoginHandler(
             token
         }
     }
-
 }

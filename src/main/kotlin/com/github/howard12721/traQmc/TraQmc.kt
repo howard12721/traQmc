@@ -4,21 +4,23 @@ import com.github.howard12721.traQmc.handler.ChatHandler
 import com.github.howard12721.traQmc.handler.LoginHandler
 import com.github.howard12721.traQmc.intrastructure.FileConfigRepository
 import com.github.howard12721.traQmc.intrastructure.SqlUserRepository
-import com.github.howard12721.trakt.rest.apis.ChannelApi
-import com.github.howard12721.trakt.rest.apis.MessageApi
-import com.github.howard12721.trakt.websocket.DirectMessageCreated
-import com.github.howard12721.trakt.websocket.MessageCreated
-import com.github.howard12721.trakt.websocket.WebSocketClient
+import jp.xhw.trakt.bot.TraktClient
+import jp.xhw.trakt.bot.model.DirectMessageCreated
+import jp.xhw.trakt.bot.model.MessageCreated
+import jp.xhw.trakt.bot.trakt
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.bukkit.plugin.java.JavaPlugin
 
 class TraQmc : JavaPlugin() {
-
     private val configRepository = FileConfigRepository(this)
     private val userRepository = SqlUserRepository(this)
 
-    private lateinit var webSocketClient: WebSocketClient
-    private val messageApi = MessageApi()
-    private val channelApi = ChannelApi()
+    private val traktScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private lateinit var traktClient: TraktClient
 
     override fun onEnable() {
         saveDefaultConfig()
@@ -26,27 +28,28 @@ class TraQmc : JavaPlugin() {
         val config = configRepository.load()
         userRepository.connect()
 
-        webSocketClient = WebSocketClient(config.token)
-        messageApi.setBearerToken(config.token)
-        channelApi.setBearerToken(config.token)
+        traktClient = trakt(config.token)
 
-        val chatHandler = ChatHandler(this, configRepository, userRepository, messageApi, channelApi)
+        val chatHandler = ChatHandler(this, configRepository, userRepository, traktClient)
         server.pluginManager.registerEvents(chatHandler, this)
-        webSocketClient.on<MessageCreated> {
-            chatHandler.handleTraqMessage(this)
+        traktClient.on<MessageCreated> {
+            chatHandler.handleTraqMessage(it)
         }
 
-        val loginHandler = LoginHandler(this, userRepository, messageApi)
+        val loginHandler = LoginHandler(this, userRepository)
         server.pluginManager.registerEvents(loginHandler, this)
-        webSocketClient.on<DirectMessageCreated> {
-            loginHandler.handleDirectMessage(this)
+        traktClient.on<DirectMessageCreated> {
+            loginHandler.handleDirectMessage(it)
         }
 
-        webSocketClient.start()
-
+        traktScope.launch {
+            traktClient.start()
+        }
     }
 
     override fun onDisable() {
-        webSocketClient.stop()
+        traktScope.launch {
+            traktClient.stop()
+        }
     }
 }
